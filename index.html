@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Server Monitor + AI Agent</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.21/vue.global.prod.min.js"></script>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0f1115; color: #e6e6e6; }
+  header { padding: 20px 28px; border-bottom: 1px solid #262a33; }
+  header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+  header p { margin: 4px 0 0; color: #8a8f98; font-size: 13px; }
+  main { display: grid; grid-template-columns: 1.3fr 1fr; gap: 20px; padding: 24px; max-width: 1200px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card { background: #171a21; border: 1px solid #262a33; border-radius: 12px; padding: 18px 20px; margin-bottom: 18px; }
+  .card h2 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: #8a8f98; }
+  pre { white-space: pre-wrap; font-size: 13px; line-height: 1.5; margin: 0; color: #d6d9de; }
+  .status { font-size: 12px; color: #6f7580; margin-top: 8px; }
+  .chat-log { display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto; margin-bottom: 12px; }
+  .msg { padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+  .msg.user { background: #24314d; align-self: flex-end; }
+  .msg.agent { background: #1f2430; align-self: flex-start; }
+  form { display: flex; gap: 8px; }
+  input[type=text] { flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid #333844; background: #0f1115; color: #e6e6e6; }
+  button { padding: 10px 16px; border-radius: 8px; border: none; background: #4f6bff; color: white; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Server Monitor <span style="color:#4f6bff">+ AI Agent</span></h1>
+    <p>Live stats from server-stats.sh, with an agent you can ask about server health.</p>
+  </header>
+  <main>
+    <section>
+      <div class="card">
+        <h2>Live Stats</h2>
+        <pre>{{ stats || 'Loading...' }}</pre>
+        <div class="status">Last updated: {{ lastUpdated || '—' }} · refreshes every 5s</div>
+      </div>
+    </section>
+    <section>
+      <div class="card">
+        <h2>Ask the Agent</h2>
+        <div class="chat-log">
+          <div v-for="(m, i) in chat" :key="i" :class="['msg', m.role]">{{ m.text }}</div>
+          <div v-if="asking" class="msg agent">Thinking…</div>
+        </div>
+        <form @submit.prevent="ask">
+          <input type="text" v-model="question" placeholder="e.g. Is anything wrong with the server right now?" />
+          <button type="submit" :disabled="asking || !question.trim()">Ask</button>
+        </form>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+const { createApp, ref, onMounted, onUnmounted } = Vue;
+
+createApp({
+  setup() {
+    const API_BASE = "http://localhost:4000"; // point this at your backend
+
+    const stats = ref("");
+    const lastUpdated = ref("");
+    const question = ref("");
+    const asking = ref(false);
+    const chat = ref([]);
+    let timer = null;
+
+    async function fetchStats() {
+      try {
+        const res = await fetch(`${API_BASE}/api/stats`);
+        const data = await res.json();
+        stats.value = data.raw;
+        lastUpdated.value = new Date(data.timestamp).toLocaleTimeString();
+      } catch (e) {
+        stats.value = "Could not reach the backend at " + API_BASE;
+      }
+    }
+
+    async function ask() {
+      const q = question.value.trim();
+      if (!q) return;
+      chat.value.push({ role: "user", text: q });
+      question.value = "";
+      asking.value = true;
+      try {
+        const res = await fetch(`${API_BASE}/api/agent/ask`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: q }),
+        });
+        const data = await res.json();
+        chat.value.push({ role: "agent", text: data.answer || data.error });
+      } catch (e) {
+        chat.value.push({ role: "agent", text: "Request failed: " + e.message });
+      } finally {
+        asking.value = false;
+      }
+    }
+
+    onMounted(() => {
+      fetchStats();
+      timer = setInterval(fetchStats, 5000);
+    });
+    onUnmounted(() => clearInterval(timer));
+
+    return { stats, lastUpdated, question, asking, chat, ask };
+  },
+}).mount("#app");
+</script>
+</body>
+</html>

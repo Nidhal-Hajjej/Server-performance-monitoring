@@ -1,0 +1,15 @@
+{
+  "name": "server-monitor-ai-backend",
+  "version": "1.0.0",
+  "description": "Backend API for the AI-assisted server monitoring dashboard",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
+    "express": "^4.19.2"
+  }
+}
