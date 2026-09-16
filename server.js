@@ -7,6 +7,7 @@ const { runAgent } = require("./agent");
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, "public"))); // serves public/index.html at "/"
 
 const SCRIPT_PATH = path.join(__dirname, "server-stats.sh");
 const HISTORY_LIMIT = 100;
